@@ -53,7 +53,6 @@ jobs:
       - name: Set up Android SDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-          echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Install Flet
         run: |
@@ -62,32 +61,27 @@ jobs:
       - name: Create Flet project
         run: |
           python -c "
-          import flet as ft
           import os
           import shutil
 
-          # Create project directory
           os.makedirs('flet_app', exist_ok=True)
 
-          # Read our main.py
           with open('main.py', 'r') as f:
               main_content = f.read()
 
-          # Create Flet web project structure
           with open('flet_app/main.py', 'w') as f:
               f.write(main_content)
 
-          # Copy src directory
           shutil.copytree('src', 'flet_app/src', dirs_exist_ok=True)
           shutil.copy('requirements.txt', 'flet_app/')
 
-          print('Flet app created successfully')
+          print('Flet app created')
           "
 
       - name: Build APK
         run: |
           cd flet_app
-          flet build apk
+          echo "y" | flet build apk --platform android
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

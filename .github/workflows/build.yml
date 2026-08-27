@@ -50,32 +50,50 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Flet CLI
+      - name: Set up Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+      - name: Install Flet
         run: |
           pip install flet
 
-      - name: Create Flet app
+      - name: Create Flet project
         run: |
-          flet create web mail-sorter-app
-          ls -la
+          python -c "
+          import flet as ft
+          import os
+          import shutil
 
-      - name: Replace with our app
-        run: |
-          cp main.py mail-sorter-app/main.py
-          mkdir -p mail-sorter-app/src
-          cp -r src/* mail-sorter-app/src/
-          cp requirements.txt mail-sorter-app/
+          # Create project directory
+          os.makedirs('flet_app', exist_ok=True)
+
+          # Read our main.py
+          with open('main.py', 'r') as f:
+              main_content = f.read()
+
+          # Create Flet web project structure
+          with open('flet_app/main.py', 'w') as f:
+              f.write(main_content)
+
+          # Copy src directory
+          shutil.copytree('src', 'flet_app/src', dirs_exist_ok=True)
+          shutil.copy('requirements.txt', 'flet_app/')
+
+          print('Flet app created successfully')
+          "
 
       - name: Build APK
         run: |
-          cd mail-sorter-app
+          cd flet_app
           flet build apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: MailSorter-Android-APK
-          path: mail-sorter-app/build/android/
+          path: flet_app/build/android/
           retention-days: 30
 
   release:
@@ -93,14 +111,12 @@ jobs:
         with:
           name: MailSorter-Windows-EXE
           path: artifacts/
-          continue-on-error: true
 
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
           name: MailSorter-Android-APK
           path: artifacts/android/
-          continue-on-error: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

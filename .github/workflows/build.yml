@@ -50,23 +50,35 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Flet
+      - name: Set up Android SDK
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+      - name: Install Flet CLI
         run: |
           pip install flet
 
-      - name: Create app module
+      - name: Create Flet app
         run: |
-          flet create_app_module --name mail_sorter_module --platform android .
+          flet create mail-sorter-web ./web_build
+
+      - name: Replace with our app
+        run: |
+          cp main.py web_build/main.py
+          mkdir -p web_build/src
+          cp -r src/* web_build/src/
+          cp requirements.txt web_build/
 
       - name: Build APK
         run: |
-          flet build apk --platform android
+          cd web_build
+          flet build apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: MailSorter-Android-APK
-          path: build/android/
+          path: web_build/build/android/
           retention-days: 30
 
   release:

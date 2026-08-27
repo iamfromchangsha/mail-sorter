@@ -1,13 +1,12 @@
 """
 邮件分类助手 - 主入口
+支持桌面和移动端
 """
 
 import flet as ft
-from src.ui.main_app import MainApp, DocumentHead, LaTeXTheme, STYLE
 from src.core.imap_client import QQMailClient
 from src.core.classifier import MailClassifier, MailCategory
 from src.utils.config import ConfigManager
-import asyncio
 
 
 class MailSorterApp:
@@ -17,104 +16,180 @@ class MailSorterApp:
         self.config = ConfigManager()
         self.client: QQMailClient = None
         self.classifier = MailClassifier()
-        self.app: MainApp = None
 
-    def run(self):
-        """运行应用"""
-        ft.app(target=self._main)
+        # 状态
+        self.is_connected = False
+        self.is_classifying = False
+        self.classification_results = {}
 
-    def _main(self, page: ft.Page):
-        """主界面"""
-        self.app = MainApp(page)
+    def build(self):
+        """构建界面"""
+        # 状态引用
+        status_ref = ft.Ref[str]()
 
-        # 设置回调
-        self.app.on_connect_callback = self._connect
-        self.app.on_disconnect_callback = self._disconnect
-        self.app.on_classify_callback = self._classify
+        def on_connect(e):
+            if self.is_classifying:
+                return
+            email = email_field.value
+            auth_code = auth_field.value
+            if not email or not auth_code:
+                status_text.value = "请输入邮箱和授权码"
+                page.update()
+                return
 
-        # 加载已有配置
-        self.config.load_config()
-        if self.config.has_credentials():
-            self.app.email_input = self.config.config.email_config.email
-            self.app.status_message = "已加载保存的配置"
-            self.app.update_status()
+            status_text.value = "正在连接..."
+            page.update()
 
-    async def _connect(self, email: str, auth_code: str) -> bool:
-        """连接邮箱"""
-        try:
             self.client = QQMailClient(email, auth_code)
-            success = self.client.connect()
-            if success:
+            if self.client.connect():
+                self.is_connected = True
                 self.config.save_credentials(email, auth_code)
                 # 创建分类文件夹
                 folders = ["简历分类", "报告分类", "广告分类", "通知分类", "验证码分类"]
                 for folder in folders:
                     self.client.create_folder(folder)
-            return success
-        except Exception as e:
-            print(f"连接失败: {e}")
-            return False
+                status_text.value = "连接成功"
+                connect_btn.text = "已连接"
+                connect_btn.disabled = True
+            else:
+                status_text.value = "连接失败，请检查凭据"
+            page.update()
 
-    def _disconnect(self):
-        """断开连接"""
-        if self.client:
-            self.client.disconnect()
-            self.client = None
+        def on_disconnect(e):
+            if self.client:
+                self.client.disconnect()
+                self.client = None
+            self.is_connected = False
+            status_text.value = "已断开"
+            connect_btn.text = "连接"
+            connect_btn.disabled = False
+            page.update()
 
-    async def _classify(self) -> dict:
-        """执行分类"""
-        if not self.client:
-            return {}
+        async def on_classify(e):
+            if not self.is_connected:
+                status_text.value = "请先连接邮箱"
+                page.update()
+                return
+            if self.is_classifying:
+                return
 
-        try:
-            # 拉取邮件
-            emails = self.client.fetch_emails(limit=100)
-            if not emails:
-                return {}
+            self.is_classifying = True
+            progress_bar.visible = True
+            status_text.value = "正在分类..."
+            page.update()
 
-            # 转换为分类器需要的格式
-            email_dicts = [
-                {
-                    "uid": m.uid,
-                    "subject": m.subject,
-                    "sender": m.sender,
-                    "body_preview": m.body_preview,
-                    "date": m.date,
-                }
-                for m in emails
-            ]
+            try:
+                # 拉取邮件
+                emails = self.client.fetch_emails(limit=100)
+                if not emails:
+                    status_text.value = "收件箱为空"
+                    return
 
-            # 执行分类
-            results = self.classifier.classify_batch(email_dicts)
+                # 转换为分类器格式
+                email_dicts = [
+                    {
+                        "uid": m.uid,
+                        "subject": m.subject,
+                        "sender": m.sender,
+                        "body_preview": m.body_preview,
+                        "date": m.date,
+                    }
+                    for m in emails
+                ]
 
-            # 移动邮件到对应文件夹
-            for category, category_emails in results.items():
-                if category == MailCategory.UNKNOWN:
-                    continue
+                # 执行分类
+                self.classification_results = self.classifier.classify_batch(email_dicts)
 
-                folder_name = self.config.get_folder_for_category(category.value[0])
-                if not folder_name:
-                    continue
+                # 更新结果卡片
+                results_container.controls.clear()
+                for category, category_emails in self.classification_results.items():
+                    if not category_emails:
+                        continue
 
-                for email in category_emails:
-                    self.client.move_email(
-                        mail_uid=email["uid"],
-                        source_folder="INBOX",
-                        target_folder=folder_name
+                    category_name = category.value[0] if hasattr(category, 'value') else str(category)
+
+                    results_container.controls.append(
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(f"{category_name}: {len(category_emails)} 封", weight=ft.FontWeight.W_600),
+                            ]),
+                            bgcolor="#F5F5F0",
+                            border=ft.border.only(left=ft.border.BorderSide(2, "#111111")),
+                            padding=15,
+                        )
                     )
 
-            return results
+                status_text.value = f"分类完成，共 {len(emails)} 封邮件"
 
-        except Exception as e:
-            print(f"分类失败: {e}")
-            return {}
+            except Exception as ex:
+                status_text.value = f"分类失败: {str(ex)}"
+
+            finally:
+                self.is_classifying = False
+                progress_bar.visible = False
+                page.update()
+
+        # 页面
+        page = ft.Page()
+        page.title = "邮件分类助手"
+        page.theme_mode = ft.ThemeMode.LIGHT
+        page.window_width = 400
+        page.window_height = 700
+
+        # 组件
+        email_field = ft.TextField(label="邮箱地址", hint_text="your_email@qq.com")
+        auth_field = ft.TextField(label="授权码", password=True, hint_text="QQ邮箱授权码")
+        connect_btn = ft.ElevatedButton("连接", on_click=on_connect)
+        disconnect_btn = ft.OutlinedButton("断开", on_click=on_disconnect)
+        classify_btn = ft.ElevatedButton("开始分类", on_click=on_classify)
+        progress_bar = ft.ProgressBar(visible=False)
+        status_text = ft.Text("未连接", size=12, color="#6B6B66")
+        results_container = ft.Column([])
+
+        # 布局
+        page.add(
+            ft.Container(
+                content=ft.Column([
+                    ft.Text("邮件分类助手", size=24, weight=ft.FontWeight.W_700),
+                    ft.Text("基于规则的智能 QQ 邮件分类", size=12, color="#6B6B66"),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=20,
+                alignment=ft.alignment.center,
+            ),
+            ft.Divider(),
+            ft.Container(
+                content=ft.Column([
+                    email_field,
+                    auth_field,
+                    ft.Row([connect_btn, disconnect_btn]),
+                ], spacing=15),
+                padding=20,
+            ),
+            ft.Container(
+                content=ft.Column([
+                    classify_btn,
+                    progress_bar,
+                    status_text,
+                ], spacing=10),
+                padding=20,
+            ),
+            ft.Container(
+                content=ft.Column([
+                    ft.Text("分类结果", weight=ft.FontWeight.W_600),
+                    results_container,
+                ], spacing=10),
+                padding=20,
+            ),
+        )
+
+        return page
 
 
-def main():
+def main(page: ft.Page):
     """主入口"""
     app = MailSorterApp()
-    app.run()
+    app.build()
 
 
 if __name__ == "__main__":
-    main()
+    ft.app(target=main)

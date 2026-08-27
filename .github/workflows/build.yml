@@ -35,9 +35,43 @@ jobs:
           path: dist/MailSorter.exe
           retention-days: 30
 
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flet
+        run: |
+          pip install flet
+
+      - name: Create app module
+        run: |
+          flet create_app_module --name mail_sorter_module --platform android .
+
+      - name: Build APK
+        run: |
+          flet build apk --platform android
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MailSorter-Android-APK
+          path: build/android/
+          retention-days: 30
+
   release:
     name: Create Release
-    needs: [build-windows]
+    needs: [build-windows, build-android]
     runs-on: ubuntu-latest
 
     steps:
@@ -49,6 +83,12 @@ jobs:
         with:
           name: MailSorter-Windows-EXE
           path: artifacts/
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: MailSorter-Android-APK
+          path: artifacts/android/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

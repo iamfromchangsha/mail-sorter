@@ -50,41 +50,39 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Set up Android SDK
-        run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-
       - name: Install Flet CLI
         run: |
           pip install flet
 
       - name: Create Flet app
         run: |
-          flet create mail-sorter-web ./web_build
+          flet create web mail-sorter-app
+          ls -la
 
       - name: Replace with our app
         run: |
-          cp main.py web_build/main.py
-          mkdir -p web_build/src
-          cp -r src/* web_build/src/
-          cp requirements.txt web_build/
+          cp main.py mail-sorter-app/main.py
+          mkdir -p mail-sorter-app/src
+          cp -r src/* mail-sorter-app/src/
+          cp requirements.txt mail-sorter-app/
 
       - name: Build APK
         run: |
-          cd web_build
+          cd mail-sorter-app
           flet build apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: MailSorter-Android-APK
-          path: web_build/build/android/
+          path: mail-sorter-app/build/android/
           retention-days: 30
 
   release:
     name: Create Release
     needs: [build-windows, build-android]
     runs-on: ubuntu-latest
+    if: always()
 
     steps:
       - name: Checkout
@@ -95,12 +93,14 @@ jobs:
         with:
           name: MailSorter-Windows-EXE
           path: artifacts/
+          continue-on-error: true
 
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
           name: MailSorter-Android-APK
           path: artifacts/android/
+          continue-on-error: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

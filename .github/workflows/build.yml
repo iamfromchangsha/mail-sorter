@@ -27,48 +27,17 @@ jobs:
       - name: Build EXE
         run: |
           pyinstaller --onefile --name "MailSorter" main.py --collect-all flet
-          ls -la dist/
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: MailSorter-Windows
+          name: MailSorter-Windows-EXE
           path: dist/MailSorter.exe
-          retention-days: 30
-
-  build-web:
-    name: Build Web App
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Flet
-        run: |
-          pip install flet
-
-      - name: Build Web
-        run: |
-          python -c "import flet; flet.build_package()"
-          flet build web --project mail-sorter
-          ls -la build/web/
-
-      - name: Upload Web artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: MailSorter-Web
-          path: build/web/
           retention-days: 30
 
   release:
     name: Create Release
-    needs: [build-windows, build-web]
+    needs: [build-windows]
     runs-on: ubuntu-latest
 
     steps:
@@ -78,19 +47,12 @@ jobs:
       - name: Download EXE
         uses: actions/download-artifact@v4
         with:
-          name: MailSorter-Windows
+          name: MailSorter-Windows-EXE
           path: artifacts/
-
-      - name: Download Web
-        uses: actions/download-artifact@v4
-        with:
-          name: MailSorter-Web
-          path: artifacts/web/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: artifacts/**/*
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

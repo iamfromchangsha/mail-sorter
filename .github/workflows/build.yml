@@ -35,66 +35,10 @@ jobs:
           path: dist/MailSorter.exe
           retention-days: 30
 
-  build-android:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-          cache: true
-
-      - name: Set up Android SDK
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-
-      - name: Install Flet
-        run: |
-          pip install flet
-
-      - name: Create Flet project
-        run: |
-          python -c "
-          import os
-          import shutil
-
-          os.makedirs('flet_app', exist_ok=True)
-
-          with open('main.py', 'r') as f:
-              main_content = f.read()
-
-          with open('flet_app/main.py', 'w') as f:
-              f.write(main_content)
-
-          shutil.copytree('src', 'flet_app/src', dirs_exist_ok=True)
-          shutil.copy('requirements.txt', 'flet_app/')
-
-          print('Flet app created')
-          "
-
-      - name: Build APK
-        run: |
-          cd flet_app
-          echo "y" | flet build apk --platform android
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MailSorter-Android-APK
-          path: flet_app/build/android/
-          retention-days: 30
-
   release:
     name: Create Release
-    needs: [build-windows, build-android]
+    needs: [build-windows]
     runs-on: ubuntu-latest
-    if: always()
 
     steps:
       - name: Checkout
@@ -105,12 +49,6 @@ jobs:
         with:
           name: MailSorter-Windows-EXE
           path: artifacts/
-
-      - name: Download APK
-        uses: actions/download-artifact@v4
-        with:
-          name: MailSorter-Android-APK
-          path: artifacts/android/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

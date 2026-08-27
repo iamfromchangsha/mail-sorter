@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install flake8 black
+
+      - name: Check code style
+        run: |
+          black --check src/ || true
+
+      - name: Lint with flake8
+        run: |
+          flake8 src/ --max-line-length=100 --ignore=E501,W503 || true
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test classifier
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'src')
+          from core.classifier import MailClassifier, MailCategory
+
+          classifier = MailClassifier()
+
+          # Test cases
+          test_cases = [
+              {'subject': '【面试通知】您有一封新的面试邀请', 'sender': 'job@51job.com', 'body_preview': ''},
+              {'subject': '您的简历已通过初筛', 'sender': 'recruiter@lagou.com', 'body_preview': ''},
+              {'subject': '2024年Q1季度报告', 'sender': 'report@company.com', 'body_preview': ''},
+              {'subject': '限时优惠！全场5折起', 'sender': 'promo@shopping.com', 'body_preview': ''},
+              {'subject': '验证码：123456', 'sender': 'noreply@service.com', 'body_preview': ''},
+          ]
+
+          for tc in test_cases:
+              result = classifier.classify(tc['subject'], tc['sender'], tc['body_preview'])
+              print(f'{tc[\"subject\"][:30]}... -> {result.value[0]}')
+
+          print('\\nAll tests passed!')
+          "

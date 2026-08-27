@@ -67,5 +67,5 @@ jobs:
               result = classifier.classify(tc['subject'], tc['sender'], tc['body_preview'])
               print(f'{tc[\"subject\"][:30]}... -> {result.value[0]}')
 
-          print('\\nAll tests passed!')
+          print('\nAll tests passed!')
           "

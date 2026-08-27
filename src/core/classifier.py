@@ -64,9 +64,9 @@ class MailClassifier:
         # 通知类
         ClassificationRule(
             category=MailCategory.NOTIFICATION,
-            keywords=["通知", "提醒", "公告", "系统消息", "重要", "提醒您", "请注意", "关于", "更新"],
-            sender_patterns=["official", "support", "service", "help"],
-            priority=2
+            keywords=["通知", "提醒", "公告", "系统消息", "重要", "提醒您", "请注意", "关于", "更新", "订单"],
+            sender_patterns=["official", "support", "service", "help", "notification"],
+            priority=3
         ),
     ]
 
@@ -102,13 +102,15 @@ class MailClassifier:
             # 检查发件人模式匹配
             sender_match = any(pattern.lower() in sender_lower for pattern in rule.sender_patterns)
 
-            # 双重匹配或关键词高权重匹配
+            # 双重匹配
             if keyword_match and sender_match:
                 return rule.category
-            elif keyword_match and len(rule.keywords) >= 2:
-                # 多个关键词匹配，提高置信度
+
+            # 高优先级规则：关键词强匹配
+            if keyword_match:
                 matched_count = sum(1 for kw in rule.keywords if kw.lower() in text)
-                if matched_count >= 2:
+                # 多个关键词匹配 或 高优先级规则
+                if matched_count >= 2 or rule.priority >= 3:
                     return rule.category
 
         return MailCategory.UNKNOWN

@@ -36,44 +36,39 @@ jobs:
           path: dist/MailSorter.exe
           retention-days: 30
 
-  build-android:
-    name: Build Android APK
+  build-web:
+    name: Build Web App
     runs-on: ubuntu-latest
-
-    container:
-      image: ghcr.io/altkdewiki/android-sdk:latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
+          python-version: '3.12'
 
-      - name: Install web dependencies
+      - name: Install Flet
         run: |
-          flutter config --enable-android
-          flutter doctor --android-licenses || true
+          pip install flet
 
-      - name: Build APK (Web version as fallback)
+      - name: Build Web
         run: |
-          flutter pub get
-          flutter build web --release
+          python -c "import flet; flet.build_package()"
+          flet build web --project mail-sorter
           ls -la build/web/
 
-      - name: Upload APK artifact
+      - name: Upload Web artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MailSorter-Android-Web
+          name: MailSorter-Web
           path: build/web/
           retention-days: 30
 
   release:
     name: Create Release
-    needs: [build-windows, build-android]
+    needs: [build-windows, build-web]
     runs-on: ubuntu-latest
 
     steps:
@@ -89,7 +84,7 @@ jobs:
       - name: Download Web
         uses: actions/download-artifact@v4
         with:
-          name: MailSorter-Android-Web
+          name: MailSorter-Web
           path: artifacts/web/
 
       - name: Create Release
